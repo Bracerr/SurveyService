@@ -42,8 +42,7 @@ func main() {
 
 	userHandler := userhttp.NewUserHandler(userUsecase)
 
-	jwtConfig := &userhttp.JWTConfig{Secret: cfg.JWT.Secret}
-	router := userhttp.NewRouter(userHandler, logger, jwtConfig)
+	router := userhttp.NewRouter(userHandler, logger, &cfg.JWT)
 
 	serverAddr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)
 	logger.Infof("Starting server on %s", serverAddr)

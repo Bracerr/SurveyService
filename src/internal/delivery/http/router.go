@@ -1,6 +1,7 @@
 package http
 
 import (
+	"survey-project/src/internal/config"
 	"survey-project/src/pkg/middleware"
 
 	"github.com/go-chi/chi/v5"
@@ -11,10 +12,10 @@ import (
 type Router struct {
 	userHandler *UserHandler
 	logger      *logrus.Logger
-	jwtConfig   *JWTConfig
+	jwtConfig   *config.JWTConfig
 }
 
-func NewRouter(userHandler *UserHandler, logger *logrus.Logger, jwtConfig *JWTConfig) *Router {
+func NewRouter(userHandler *UserHandler, logger *logrus.Logger, jwtConfig *config.JWTConfig) *Router {
 	return &Router{
 		userHandler: userHandler,
 		logger:      logger,
