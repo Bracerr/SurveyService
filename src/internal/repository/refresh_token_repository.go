@@ -39,51 +39,51 @@ func (r *RefreshTokenRepository) Create(token *domain.RefreshToken) error {
 }
 
 func (r *RefreshTokenRepository) GetByToken(token string) (*domain.RefreshToken, error) {
-    refreshToken := &domain.RefreshToken{}
+	refreshToken := &domain.RefreshToken{}
 
-    query := `
+	query := `
         SELECT id, user_id, token, expires_at, created_at
         FROM refresh_tokens
         WHERE token = $1
     `
 
-    err := r.pool.QueryRow(
-        context.Background(),
-        query,
-        token,
-    ).Scan(
-        &refreshToken.ID,
-        &refreshToken.UserID,
-        &refreshToken.Token,
-        &refreshToken.ExpiresAt,
-        &refreshToken.CreatedAt,
-    )
+	err := r.pool.QueryRow(
+		context.Background(),
+		query,
+		token,
+	).Scan(
+		&refreshToken.ID,
+		&refreshToken.UserID,
+		&refreshToken.Token,
+		&refreshToken.ExpiresAt,
+		&refreshToken.CreatedAt,
+	)
 
-    if err != nil {
-        if errors.Is(err, pgx.ErrNoRows) {
-            return nil, apperrors.ErrInvalidToken
-        }
-        return nil, err
-    }
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, apperrors.ErrInvalidToken
+		}
+		return nil, err
+	}
 
-    return refreshToken, nil
+	return refreshToken, nil
 }
 
 func (r *RefreshTokenRepository) UpdateToken(userID int, token string, expiresAt time.Time) error {
-    query := `
+	query := `
         INSERT INTO refresh_tokens (user_id, token, expires_at)
         VALUES ($1, $2, $3)
         ON CONFLICT (user_id) DO UPDATE
         SET token = $2, expires_at = $3
     `
 
-    _, err := r.pool.Exec(
-        context.Background(),
-        query,
-        userID,
-        token,
-        expiresAt,
-    )
+	_, err := r.pool.Exec(
+		context.Background(),
+		query,
+		userID,
+		token,
+		expiresAt,
+	)
 
-    return err
+	return err
 }

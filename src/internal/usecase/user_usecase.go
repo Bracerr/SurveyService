@@ -1,29 +1,31 @@
 package usecase
 
 import (
+	"regexp"
 	"time"
 
 	"survey-project/src/internal/apperrors"
 	"survey-project/src/internal/config"
 	"survey-project/src/internal/domain"
 	"survey-project/src/internal/dto"
-	"survey-project/src/pkg/middleware"
+	"survey-project/src/internal/repository"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
+func isEmailValid(e string) bool {
+	emailRegex := regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,4}$`)
+	return emailRegex.MatchString(e)
+}
+
 type UserUsecase struct {
-	userRepo         domain.UserRepository
-	refreshTokenRepo domain.RefreshTokenRepository
+	userRepo         repository.UserRepository
+	refreshTokenRepo repository.RefreshTokenRepository
 	jwtConfig        config.JWTConfig
 }
 
-func NewUserUsecase(
-	userRepo domain.UserRepository,
-	refreshTokenRepo domain.RefreshTokenRepository,
-	jwtConfig config.JWTConfig,
-) *UserUsecase {
+func NewUserUsecase(userRepo repository.UserRepository, refreshTokenRepo repository.RefreshTokenRepository, jwtConfig config.JWTConfig) *UserUsecase {
 	return &UserUsecase{
 		userRepo:         userRepo,
 		refreshTokenRepo: refreshTokenRepo,
@@ -31,37 +33,17 @@ func NewUserUsecase(
 	}
 }
 
-type RegisterInput struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	FullName string `json:"full_name"`
-}
-
-type LoginInput struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-type TokenPair struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-}
-
-type RefreshTokenInput struct {
-	Token string `json:"token"`
-}
-
 func (u *UserUsecase) Register(input dto.RegisterInput) error {
 	if input.Email == "" || input.Password == "" || input.FullName == "" {
 		return apperrors.ErrValidationFailed
 	}
 
-	_, err := u.userRepo.GetByEmail(input.Email)
-	if err == nil {
-		return apperrors.ErrUserAlreadyExists
+	if !isEmailValid(input.Email) {
+		return apperrors.ErrInvalidEmail
 	}
-	if err != apperrors.ErrUserNotFound {
-		return err
+
+	if _, err := u.userRepo.GetByEmail(input.Email); err == nil {
+		return apperrors.ErrUserAlreadyExists
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
@@ -84,7 +66,7 @@ func (u *UserUsecase) Register(input dto.RegisterInput) error {
 	return u.userRepo.Create(user)
 }
 
-func (u *UserUsecase) Login(input LoginInput) (*TokenPair, error) {
+func (u *UserUsecase) Login(input dto.LoginInput) (*dto.TokenPair, error) {
 	user, err := u.userRepo.GetByEmail(input.Email)
 	if err != nil {
 		return nil, apperrors.ErrInvalidCredentials
@@ -104,16 +86,16 @@ func (u *UserUsecase) Login(input LoginInput) (*TokenPair, error) {
 		return nil, err
 	}
 
-	return &TokenPair{
+	return &dto.TokenPair{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	}, nil
 }
 
-func (u *UserUsecase) RefreshToken(token string) (*TokenPair, error) {
+func (u *UserUsecase) RefreshToken(token string) (*dto.TokenPair, error) {
 	refreshToken, err := u.refreshTokenRepo.GetByToken(token)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.ErrInvalidToken
 	}
 
 	if refreshToken.ExpiresAt.Before(time.Now()) {
@@ -135,20 +117,18 @@ func (u *UserUsecase) RefreshToken(token string) (*TokenPair, error) {
 		return nil, err
 	}
 
-	return &TokenPair{
+	return &dto.TokenPair{
 		AccessToken:  accessToken,
 		RefreshToken: newRefreshToken,
 	}, nil
 }
 
 func (u *UserUsecase) generateAccessToken(user *domain.User) (string, error) {
-	claims := &middleware.UserClaims{
-		UserID: user.ID,
-		Email:  user.Email,
-		Role:   string(user.Role),
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(u.jwtConfig.AccessDuration)),
-		},
+	claims := jwt.MapClaims{
+		"user_id": user.ID,
+		"email":   user.Email,
+		"role":    string(user.Role),
+		"exp":     time.Now().Add(u.jwtConfig.AccessDuration).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -166,11 +146,8 @@ func (u *UserUsecase) generateRefreshToken(user *domain.User) (string, error) {
 		return "", err
 	}
 
-	if err := u.refreshTokenRepo.UpdateToken(
-		user.ID,
-		tokenString,
-		time.Now().Add(u.jwtConfig.RefreshDuration),
-	); err != nil {
+	err = u.refreshTokenRepo.UpdateToken(user.ID, tokenString, time.Now().Add(u.jwtConfig.RefreshDuration))
+	if err != nil {
 		return "", err
 	}
 
@@ -205,6 +182,10 @@ func (u *UserUsecase) Delete(id int) error {
 func (u *UserUsecase) Update(id int, input *dto.UpdateUserInput, currentUserID int, currentUserRole domain.UserRole) error {
 	if currentUserRole != domain.RoleAdmin && currentUserID != id {
 		return apperrors.ErrUnauthorized
+	}
+
+	if input.Email != nil && !isEmailValid(*input.Email) {
+		return apperrors.ErrInvalidEmail
 	}
 
 	updates := make(map[string]interface{})

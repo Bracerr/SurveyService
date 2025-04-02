@@ -1,18 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 
+	"survey-project/src/internal/bootstrap"
 	"survey-project/src/internal/config"
-	"survey-project/src/internal/database"
 	userhttp "survey-project/src/internal/delivery/http"
-	"survey-project/src/internal/repository"
-	"survey-project/src/internal/usecase"
-
-	"github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -21,32 +17,32 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	logger := logrus.New()
-	logger.SetFormatter(&logrus.JSONFormatter{})
-	logger.SetOutput(os.Stdout)
+	logger := bootstrap.InitLogger()
 
-	if err := database.RunMigrations(cfg); err != nil {
-		logger.Fatalf("Failed to run migrations: %v", err)
-	}
-
-	pool, err := database.NewPostgresDB(cfg)
+	postgresDB, mongoDB, err := bootstrap.InitDatabases(cfg)
 	if err != nil {
-		logger.Fatalf("Failed to initialize database: %v", err)
+		logger.Fatalf("Failed to initialize databases: %v", err)
 	}
-	defer pool.Close()
+	defer postgresDB.Close()
+	defer mongoDB.Disconnect(context.Background())
 
-	userRepo := repository.NewUserRepository(pool)
-	refreshTokenRepo := repository.NewRefreshTokenRepository(pool)
+	userRepo, refreshTokenRepo, surveyRepo := bootstrap.InitRepositories(postgresDB, mongoDB)
 
-	userUsecase := usecase.NewUserUsecase(userRepo, refreshTokenRepo, cfg.JWT)
+	userUsecase, surveyUsecase := bootstrap.InitUseCases(userRepo, refreshTokenRepo, surveyRepo, cfg.JWT)
 
-	userHandler := userhttp.NewUserHandler(userUsecase)
+	userHandler, surveyHandler := bootstrap.InitHandlers(userUsecase, surveyUsecase)
 
-	router := userhttp.NewRouter(userHandler, logger, &cfg.JWT)
+	router := userhttp.NewRouter(userHandler, surveyHandler, logger, &cfg.JWT)
 
-	serverAddr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)
-	logger.Infof("Starting server on %s", serverAddr)
-	if err := http.ListenAndServe(serverAddr, router.Setup()); err != nil {
-		logger.Fatalf("Failed to start server: %v", err)
+	server := &http.Server{
+		Addr:    fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port),
+		Handler: router.SetupRoutes(),
+	}
+
+	bootstrap.SetupGracefulShutdown(server, logger)
+
+	logger.Infof("Starting server on %s", fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port))
+	if err := server.ListenAndServe(); err != nil {
+		logger.Fatalf("Server failed to start: %v", err)
 	}
 }

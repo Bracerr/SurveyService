@@ -12,4 +12,6 @@ var (
 	ErrValidationFailed   = errors.New("validation failed")
 	ErrUnauthorized       = errors.New("unauthorized")
 	ErrInvalidEmail       = errors.New("invalid email")
+	ErrSurveyNotFound     = errors.New("survey not found")
+	ErrInternalServer     = errors.New("internal server error")
 )

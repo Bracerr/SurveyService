@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"survey-project/src/internal/apperrors"
+	"survey-project/src/internal/domain"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -71,4 +72,21 @@ func GetUserFromContext(ctx context.Context) (*UserClaims, error) {
 		return nil, apperrors.ErrInvalidToken
 	}
 	return claims, nil
+}
+
+func AdminOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims, err := GetUserFromContext(r.Context())
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+
+		if claims.Role != string(domain.RoleAdmin) {
+			writeError(w, http.StatusForbidden, "Admin access required")
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }

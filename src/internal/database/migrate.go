@@ -16,11 +16,11 @@ import (
 func RunMigrations(cfg *config.Config) error {
 	db, err := sql.Open("postgres", fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		cfg.Postgres.Host,
-		cfg.Postgres.Port,
-		cfg.Postgres.User,
-		cfg.Postgres.Password,
-		cfg.Postgres.DBName,
+		cfg.PostgreSQL.Host,
+		cfg.PostgreSQL.Port,
+		cfg.PostgreSQL.User,
+		cfg.PostgreSQL.Password,
+		cfg.PostgreSQL.DBName,
 	))
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
@@ -57,11 +57,11 @@ func RunMigrations(cfg *config.Config) error {
 func RollbackMigrations(cfg *config.Config) error {
 	db, err := sql.Open("postgres", fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		cfg.Postgres.Host,
-		cfg.Postgres.Port,
-		cfg.Postgres.User,
-		cfg.Postgres.Password,
-		cfg.Postgres.DBName,
+		cfg.PostgreSQL.Host,
+		cfg.PostgreSQL.Port,
+		cfg.PostgreSQL.User,
+		cfg.PostgreSQL.Password,
+		cfg.PostgreSQL.DBName,
 	))
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)

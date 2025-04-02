@@ -9,14 +9,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewPostgresDB(cfg *config.Config) (*pgxpool.Pool, error) {
+func NewPostgresDB(cfg *config.Config) (*PostgresDB, error) {
 	dsn := fmt.Sprintf(
 		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		cfg.Postgres.User,
-		cfg.Postgres.Password,
-		cfg.Postgres.Host,
-		cfg.Postgres.Port,
-		cfg.Postgres.DBName,
+		cfg.PostgreSQL.User,
+		cfg.PostgreSQL.Password,
+		cfg.PostgreSQL.Host,
+		cfg.PostgreSQL.Port,
+		cfg.PostgreSQL.DBName,
 	)
 
 	poolConfig, err := pgxpool.ParseConfig(dsn)
@@ -33,5 +33,5 @@ func NewPostgresDB(cfg *config.Config) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return pool, nil
+	return NewPostgresDBWrapper(pool), nil
 }
